@@ -1,19 +1,3 @@
-//===-- Frequent Path Loop Invariant Code Motion Pass --------------------===//
-//
-//                     The LLVM Compiler Infrastructure
-//
-// This file is distributed under the University of Illinois Open Source
-// License. See LICENSE.TXT for details.
-//
-//===---------------------------------------------------------------------===//
-//
-// CSE583 F25 - This pass can be used as a template for your FPLICM homework
-//               assignment.
-//               The passes get registered as "fplicm-correctness" and
-//               "fplicm-performance".
-//
-//
-////===-------------------------------------------------------------------===//
 #include "llvm/Analysis/BlockFrequencyInfo.h"
 #include "llvm/Analysis/BranchProbabilityInfo.h"
 #include "llvm/Analysis/LoopInfo.h"
