@@ -64,10 +64,12 @@ CMAKE_BINARY_DIR = /n/eecs583b/home/rysjain/hft-llvm/build
 
 # The main recursive "all" target.
 all: hw2pass/all
+all: hft_instrumentation/all
 .PHONY : all
 
 # The main recursive "preinstall" target.
 preinstall: hw2pass/preinstall
+preinstall: hft_instrumentation/preinstall
 .PHONY : preinstall
 
 # The main recursive "clean" target.
@@ -79,7 +81,25 @@ clean: CMakeFiles/ARMTargetParserTableGen.dir/clean
 clean: CMakeFiles/AArch64TargetParserTableGen.dir/clean
 clean: CMakeFiles/RISCVTargetParserTableGen.dir/clean
 clean: hw2pass/clean
+clean: hft_instrumentation/clean
 .PHONY : clean
+
+#=============================================================================
+# Directory level rules for directory hft_instrumentation
+
+# Recursive "all" directory target.
+hft_instrumentation/all: hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/all
+.PHONY : hft_instrumentation/all
+
+# Recursive "preinstall" directory target.
+hft_instrumentation/preinstall:
+.PHONY : hft_instrumentation/preinstall
+
+# Recursive "clean" directory target.
+hft_instrumentation/clean: hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/clean
+hft_instrumentation/clean: hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/clean
+hft_instrumentation/clean: hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/clean
+.PHONY : hft_instrumentation/clean
 
 #=============================================================================
 # Directory level rules for directory hw2pass
@@ -287,7 +307,7 @@ CMakeFiles/RISCVTargetParserTableGen.dir/clean:
 hw2pass/CMakeFiles/HW2Pass.dir/all:
 	$(MAKE) $(MAKESILENT) -f hw2pass/CMakeFiles/HW2Pass.dir/build.make hw2pass/CMakeFiles/HW2Pass.dir/depend
 	$(MAKE) $(MAKESILENT) -f hw2pass/CMakeFiles/HW2Pass.dir/build.make hw2pass/CMakeFiles/HW2Pass.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles --progress-num=1,2 "Built target HW2Pass"
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles --progress-num=3,4 "Built target HW2Pass"
 .PHONY : hw2pass/CMakeFiles/HW2Pass.dir/all
 
 # Build rule for subdir invocation for target.
@@ -357,6 +377,84 @@ install-HW2Pass-stripped: hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/rule
 hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/clean:
 	$(MAKE) $(MAKESILENT) -f hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/build.make hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/clean
 .PHONY : hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/clean
+
+#=============================================================================
+# Target rules for target hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir
+
+# All Build rule for target.
+hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/all:
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/depend
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles --progress-num=1,2 "Built target HFTInstrumentationPass"
+.PHONY : hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/all
+
+# Build rule for subdir invocation for target.
+hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles 2
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles 0
+.PHONY : hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/rule
+
+# Convenience name for target.
+HFTInstrumentationPass: hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/rule
+.PHONY : HFTInstrumentationPass
+
+# clean rule for target.
+hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/clean:
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/clean
+.PHONY : hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/clean
+
+#=============================================================================
+# Target rules for target hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir
+
+# All Build rule for target.
+hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/all: hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/all
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/depend
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles --progress-num= "Built target install-HFTInstrumentationPass"
+.PHONY : hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/all
+
+# Build rule for subdir invocation for target.
+hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles 2
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles 0
+.PHONY : hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/rule
+
+# Convenience name for target.
+install-HFTInstrumentationPass: hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/rule
+.PHONY : install-HFTInstrumentationPass
+
+# clean rule for target.
+hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/clean:
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/clean
+.PHONY : hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/clean
+
+#=============================================================================
+# Target rules for target hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir
+
+# All Build rule for target.
+hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/all: hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/all
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/build.make hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/depend
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/build.make hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --progress-dir=/n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles --progress-num= "Built target install-HFTInstrumentationPass-stripped"
+.PHONY : hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/all
+
+# Build rule for subdir invocation for target.
+hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles 2
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles 0
+.PHONY : hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/rule
+
+# Convenience name for target.
+install-HFTInstrumentationPass-stripped: hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/rule
+.PHONY : install-HFTInstrumentationPass-stripped
+
+# clean rule for target.
+hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/clean:
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/build.make hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/clean
+.PHONY : hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/clean
 
 #=============================================================================
 # Special targets to cleanup operation of make.

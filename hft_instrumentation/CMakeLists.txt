@@ -1,0 +1,2 @@
+# hft_instrumentation/CMakeLists.txt
+add_llvm_pass_plugin(HFTInstrumentationPass InstrumentationPass.cpp)

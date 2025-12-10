@@ -283,34 +283,10 @@ static bool processLoop(llvm::Loop &L,
 using namespace llvm;
 
 namespace {
-  struct HW2CorrectnessPass : public PassInfoMixin<HW2CorrectnessPass> {
+  struct HFTInstrumentationPass : public PassInfoMixin<HFTInstrumentationPass> {
 
     PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
-      auto &BFI = FAM.getResult<BlockFrequencyAnalysis>(F);
-      auto &BPI = FAM.getResult<BranchProbabilityAnalysis>(F);
-      auto &LI  = FAM.getResult<LoopAnalysis>(F);
-
-      bool Changed = false;
-      for (llvm::Loop *L : LI) {
-        Changed |= processLoop(*L, BPI, BFI, LI);
-      }
-      /* *******Implementation Ends Here******* */
-
-      // Your pass is modifying the source code...
-      return Changed ? PreservedAnalyses::none() : PreservedAnalyses::all();
-    }
-  };
-  struct HW2PerformancePass : public PassInfoMixin<HW2PerformancePass> {
-    PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
-      llvm::BlockFrequencyAnalysis::Result &bfi = FAM.getResult<BlockFrequencyAnalysis>(F);
-      llvm::BranchProbabilityAnalysis::Result &bpi = FAM.getResult<BranchProbabilityAnalysis>(F);
-      llvm::LoopAnalysis::Result &li = FAM.getResult<LoopAnalysis>(F);
-      /* *******Implementation Starts Here******* */
-      // This is a bonus. You do not need to attempt this to receive full credit.
-      /* *******Implementation Ends Here******* */
-
-      // Your pass is modifying the source code. Figure out which analyses
-      // are preserved and only return those, not all.
+      llvm::errs() << "[HFT-Inst] Function: " << F.getName() << "\n";
       return PreservedAnalyses::all();
     }
   };
@@ -318,17 +294,13 @@ namespace {
 
 extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginInfo() {
   return {
-    LLVM_PLUGIN_API_VERSION, "HW2Pass", "v0.1",
+    LLVM_PLUGIN_API_VERSION, "HFTInstrumentationPass", "v0.1",
     [](PassBuilder &PB) {
       PB.registerPipelineParsingCallback(
         [](StringRef Name, FunctionPassManager &FPM,
         ArrayRef<PassBuilder::PipelineElement>) {
-          if(Name == "fplicm-correctness"){
-            FPM.addPass(HW2CorrectnessPass());
-            return true;
-          }
-          if(Name == "fplicm-performance"){
-            FPM.addPass(HW2PerformancePass());
+          if(Name == "hft-inst"){
+            FPM.addPass(HFTInstrumentationPass());
             return true;
           }
           return false;

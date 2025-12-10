@@ -14,3 +14,4 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Pass plugins
 add_subdirectory(hw2pass)
+add_subdirectory(hft_instrumentation)

@@ -20,3 +20,12 @@
 /n/eecs583b/home/rysjain/hft-llvm/build/hw2pass/CMakeFiles/install.dir
 /n/eecs583b/home/rysjain/hft-llvm/build/hw2pass/CMakeFiles/install/local.dir
 /n/eecs583b/home/rysjain/hft-llvm/build/hw2pass/CMakeFiles/install/strip.dir
+/n/eecs583b/home/rysjain/hft-llvm/build/hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir
+/n/eecs583b/home/rysjain/hft-llvm/build/hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir
+/n/eecs583b/home/rysjain/hft-llvm/build/hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir
+/n/eecs583b/home/rysjain/hft-llvm/build/hft_instrumentation/CMakeFiles/edit_cache.dir
+/n/eecs583b/home/rysjain/hft-llvm/build/hft_instrumentation/CMakeFiles/rebuild_cache.dir
+/n/eecs583b/home/rysjain/hft-llvm/build/hft_instrumentation/CMakeFiles/list_install_components.dir
+/n/eecs583b/home/rysjain/hft-llvm/build/hft_instrumentation/CMakeFiles/install.dir
+/n/eecs583b/home/rysjain/hft-llvm/build/hft_instrumentation/CMakeFiles/install/local.dir
+/n/eecs583b/home/rysjain/hft-llvm/build/hft_instrumentation/CMakeFiles/install/strip.dir

@@ -132,14 +132,14 @@ install/strip/fast: preinstall/fast
 
 # The main all target
 all: cmake_check_build_system
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(CMAKE_COMMAND) -E cmake_progress_start /n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles /n/eecs583b/home/rysjain/hft-llvm/build/hw2pass//CMakeFiles/progress.marks
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hw2pass/all
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(CMAKE_COMMAND) -E cmake_progress_start /n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles /n/eecs583b/home/rysjain/hft-llvm/build/hft_instrumentation//CMakeFiles/progress.marks
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hft_instrumentation/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /n/eecs583b/home/rysjain/hft-llvm/build/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
 clean:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hw2pass/clean
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hft_instrumentation/clean
 .PHONY : clean
 
 # The main clean target
@@ -148,12 +148,12 @@ clean/fast: clean
 
 # Prepare targets for installation.
 preinstall: all
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hw2pass/preinstall
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hft_instrumentation/preinstall
 .PHONY : preinstall
 
 # Prepare targets for installation.
 preinstall/fast:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hw2pass/preinstall
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hft_instrumentation/preinstall
 .PHONY : preinstall/fast
 
 # clear depends
@@ -162,70 +162,70 @@ depend:
 .PHONY : depend
 
 # Convenience name for target.
-hw2pass/CMakeFiles/HW2Pass.dir/rule:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hw2pass/CMakeFiles/HW2Pass.dir/rule
-.PHONY : hw2pass/CMakeFiles/HW2Pass.dir/rule
+hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/rule:
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/rule
+.PHONY : hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/rule
 
 # Convenience name for target.
-HW2Pass: hw2pass/CMakeFiles/HW2Pass.dir/rule
-.PHONY : HW2Pass
+HFTInstrumentationPass: hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/rule
+.PHONY : HFTInstrumentationPass
 
 # fast build rule for target.
-HW2Pass/fast:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hw2pass/CMakeFiles/HW2Pass.dir/build.make hw2pass/CMakeFiles/HW2Pass.dir/build
-.PHONY : HW2Pass/fast
+HFTInstrumentationPass/fast:
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build
+.PHONY : HFTInstrumentationPass/fast
 
 # Convenience name for target.
-hw2pass/CMakeFiles/install-HW2Pass.dir/rule:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hw2pass/CMakeFiles/install-HW2Pass.dir/rule
-.PHONY : hw2pass/CMakeFiles/install-HW2Pass.dir/rule
+hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/rule:
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/rule
+.PHONY : hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/rule
 
 # Convenience name for target.
-install-HW2Pass: hw2pass/CMakeFiles/install-HW2Pass.dir/rule
-.PHONY : install-HW2Pass
+install-HFTInstrumentationPass: hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/rule
+.PHONY : install-HFTInstrumentationPass
 
 # fast build rule for target.
-install-HW2Pass/fast:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hw2pass/CMakeFiles/install-HW2Pass.dir/build.make hw2pass/CMakeFiles/install-HW2Pass.dir/build
-.PHONY : install-HW2Pass/fast
+install-HFTInstrumentationPass/fast:
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/build
+.PHONY : install-HFTInstrumentationPass/fast
 
 # Convenience name for target.
-hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/rule:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/rule
-.PHONY : hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/rule
+hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/rule:
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/rule
+.PHONY : hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/rule
 
 # Convenience name for target.
-install-HW2Pass-stripped: hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/rule
-.PHONY : install-HW2Pass-stripped
+install-HFTInstrumentationPass-stripped: hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/rule
+.PHONY : install-HFTInstrumentationPass-stripped
 
 # fast build rule for target.
-install-HW2Pass-stripped/fast:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/build.make hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/build
-.PHONY : install-HW2Pass-stripped/fast
+install-HFTInstrumentationPass-stripped/fast:
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/build.make hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/build
+.PHONY : install-HFTInstrumentationPass-stripped/fast
 
-hw2pass.o: hw2pass.cpp.o
-.PHONY : hw2pass.o
+InstrumentationPass.o: InstrumentationPass.cpp.o
+.PHONY : InstrumentationPass.o
 
 # target to build an object file
-hw2pass.cpp.o:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hw2pass/CMakeFiles/HW2Pass.dir/build.make hw2pass/CMakeFiles/HW2Pass.dir/hw2pass.cpp.o
-.PHONY : hw2pass.cpp.o
+InstrumentationPass.cpp.o:
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/InstrumentationPass.cpp.o
+.PHONY : InstrumentationPass.cpp.o
 
-hw2pass.i: hw2pass.cpp.i
-.PHONY : hw2pass.i
+InstrumentationPass.i: InstrumentationPass.cpp.i
+.PHONY : InstrumentationPass.i
 
 # target to preprocess a source file
-hw2pass.cpp.i:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hw2pass/CMakeFiles/HW2Pass.dir/build.make hw2pass/CMakeFiles/HW2Pass.dir/hw2pass.cpp.i
-.PHONY : hw2pass.cpp.i
+InstrumentationPass.cpp.i:
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/InstrumentationPass.cpp.i
+.PHONY : InstrumentationPass.cpp.i
 
-hw2pass.s: hw2pass.cpp.s
-.PHONY : hw2pass.s
+InstrumentationPass.s: InstrumentationPass.cpp.s
+.PHONY : InstrumentationPass.s
 
 # target to generate assembly for a file
-hw2pass.cpp.s:
-	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hw2pass/CMakeFiles/HW2Pass.dir/build.make hw2pass/CMakeFiles/HW2Pass.dir/hw2pass.cpp.s
-.PHONY : hw2pass.cpp.s
+InstrumentationPass.cpp.s:
+	cd /n/eecs583b/home/rysjain/hft-llvm/build && $(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/InstrumentationPass.cpp.s
+.PHONY : InstrumentationPass.cpp.s
 
 # Help Target
 help:
@@ -239,12 +239,12 @@ help:
 	@echo "... install/strip"
 	@echo "... list_install_components"
 	@echo "... rebuild_cache"
-	@echo "... install-HW2Pass"
-	@echo "... install-HW2Pass-stripped"
-	@echo "... HW2Pass"
-	@echo "... hw2pass.o"
-	@echo "... hw2pass.i"
-	@echo "... hw2pass.s"
+	@echo "... install-HFTInstrumentationPass"
+	@echo "... install-HFTInstrumentationPass-stripped"
+	@echo "... HFTInstrumentationPass"
+	@echo "... InstrumentationPass.o"
+	@echo "... InstrumentationPass.i"
+	@echo "... InstrumentationPass.s"
 .PHONY : help
 
 

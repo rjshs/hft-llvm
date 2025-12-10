@@ -87,7 +87,7 @@ rebuild_cache/fast: rebuild_cache
 
 # Special rule for the target list_install_components
 list_install_components:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Available install components are: \"HW2Pass\""
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Available install components are: \"HFTInstrumentationPass\" \"HW2Pass\""
 .PHONY : list_install_components
 
 # Special rule for the target list_install_components
@@ -291,6 +291,45 @@ install-HW2Pass-stripped/fast:
 	$(MAKE) $(MAKESILENT) -f hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/build.make hw2pass/CMakeFiles/install-HW2Pass-stripped.dir/build
 .PHONY : install-HW2Pass-stripped/fast
 
+#=============================================================================
+# Target rules for targets named HFTInstrumentationPass
+
+# Build rule for target.
+HFTInstrumentationPass: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 HFTInstrumentationPass
+.PHONY : HFTInstrumentationPass
+
+# fast build rule for target.
+HFTInstrumentationPass/fast:
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/HFTInstrumentationPass.dir/build
+.PHONY : HFTInstrumentationPass/fast
+
+#=============================================================================
+# Target rules for targets named install-HFTInstrumentationPass
+
+# Build rule for target.
+install-HFTInstrumentationPass: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 install-HFTInstrumentationPass
+.PHONY : install-HFTInstrumentationPass
+
+# fast build rule for target.
+install-HFTInstrumentationPass/fast:
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/build.make hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass.dir/build
+.PHONY : install-HFTInstrumentationPass/fast
+
+#=============================================================================
+# Target rules for targets named install-HFTInstrumentationPass-stripped
+
+# Build rule for target.
+install-HFTInstrumentationPass-stripped: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 install-HFTInstrumentationPass-stripped
+.PHONY : install-HFTInstrumentationPass-stripped
+
+# fast build rule for target.
+install-HFTInstrumentationPass-stripped/fast:
+	$(MAKE) $(MAKESILENT) -f hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/build.make hft_instrumentation/CMakeFiles/install-HFTInstrumentationPass-stripped.dir/build
+.PHONY : install-HFTInstrumentationPass-stripped/fast
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -307,11 +346,14 @@ help:
 	@echo "... ARMTargetParserTableGen"
 	@echo "... RISCVTargetParserTableGen"
 	@echo "... acc_gen"
+	@echo "... install-HFTInstrumentationPass"
+	@echo "... install-HFTInstrumentationPass-stripped"
 	@echo "... install-HW2Pass"
 	@echo "... install-HW2Pass-stripped"
 	@echo "... intrinsics_gen"
 	@echo "... omp_gen"
 	@echo "... vt_gen"
+	@echo "... HFTInstrumentationPass"
 	@echo "... HW2Pass"
 .PHONY : help
 
