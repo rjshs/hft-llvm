@@ -112,6 +112,11 @@ struct Engine {
             lvl.price = m.price;
             break;
         }
+
+        for (int k = 0; k < 256; ++k) {
+            int idx = (level + k) & (MAX_LEVELS - 1);
+            hot_acc += asks[idx].size;
+        }
     } else {
         auto &lvl = asks[level];
 
@@ -134,7 +139,7 @@ struct Engine {
 
         for (int k = 0; k < 256; ++k) {
             int idx = (level + k) & (MAX_LEVELS - 1);
-            hot_acc += asks[idx].size;       // direct use of global asks
+            hot_acc += asks[idx].size;
         }
     }
 
@@ -183,7 +188,7 @@ int main() {
         const auto &m = msgs[i];
         engine.on_message(m);
 
-        if ((i & 0xF) == 0) {   // every 256 messages 
+        if ((i & 0xFFF) == 0) {
             engine.refresh_cold_fields(m.level, m.is_bid);
         }
     }

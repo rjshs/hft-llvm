@@ -36,139 +36,44 @@
 
 using namespace llvm;
 
-struct HFTHotColdSplitPass : public PassInfoMixin<HFTHotColdSplitPass> {
+using FieldWeightsTy = DenseMap<const StructType *, std::vector<uint64_t>>;
 
-  // Per-struct, per-field weight
-  using FieldWeightsTy = DenseMap<const StructType *, std::vector<uint64_t>>;
-
-  // Simple heuristic to decide if this struct is one of our HFT structs.
-  // For your project we just check the name contains "OrderBookLevel" or
-  // has an opaque name with "hft" in it. You can tighten this if needed.
-  static bool isCandidateStruct(const StructType *ST) {
-    if (!ST->hasName())
-      return false;
-    StringRef N = ST->getName();
-    // Typical clang naming: "struct.OrderBookLevel" or similar.
-    if (N.contains("OrderBookLevel"))
-      return true;
-    if (N.contains("hft_struct"))
-      return true;
+// Simple heuristic to decide if this struct is one of our HFT structs.
+// For your project we just check the name contains "OrderBookLevel" or
+// has an opaque name with "hft" in it. You can tighten this if needed.
+static bool isCandidateStruct(const StructType *ST) {
+  if (!ST->hasName())
     return false;
-  }
+  StringRef N = ST->getName();
+  // Typical clang naming: "struct.OrderBookLevel" or similar.
+  if (N.contains("OrderBookLevel"))
+    return true;
+  if (N.contains("hft_struct"))
+    return true;
+  return false;
+}
 
-  static const StructType *getGEPStructType(const GetElementPtrInst *GEP) {
-    Type *SourceTy = GEP->getSourceElementType();   // works on LLVM 15/16+
-    return dyn_cast<StructType>(SourceTy);
-  }
+static const StructType *getGEPStructType(const GetElementPtrInst *GEP) {
+  Type *SourceTy = GEP->getSourceElementType();   // works on LLVM 15/16+
+  return dyn_cast<StructType>(SourceTy);
+}
 
-  static std::optional<unsigned> getStructFieldIndex(const GetElementPtrInst *GEP) {
-    if (GEP->getNumIndices() < 2) return std::nullopt;
+static std::optional<unsigned> getStructFieldIndex(const GetElementPtrInst *GEP) {
+  if (GEP->getNumIndices() < 2) return std::nullopt;
 
-    // Skip the first index (the struct pointer index)
-    auto IdxIt = GEP->idx_begin();
-    ++IdxIt;
+  // Skip the first index (the struct pointer index)
+  auto IdxIt = GEP->idx_begin();
+  ++IdxIt;
 
-    // GEP::idx_iterator yields a Use& → extract Value*
-    const Value *FieldIdxVal = IdxIt->get();
+  // GEP::idx_iterator yields a Use& → extract Value*
+  const Value *FieldIdxVal = IdxIt->get();
 
-    if (const auto *CI = dyn_cast<ConstantInt>(FieldIdxVal)) return static_cast<unsigned>(CI->getZExtValue());
+  if (const auto *CI = dyn_cast<ConstantInt>(FieldIdxVal)) return static_cast<unsigned>(CI->getZExtValue());
 
-    return std::nullopt;
-  }
-
-
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
-    // Only analyze Engine::on_message
-    if (!F.getName().contains("on_message")) {
-        return PreservedAnalyses::all();
-    }
-
-    errs() << "[HFTHotCold] Analyzing ONLY hot path function: " 
-           << F.getName() << "\n";
-
-    FieldWeightsTy Weights;
-
-    auto &BFI = FAM.getResult<BlockFrequencyAnalysis>(F);
-
-    for (BasicBlock &BB : F) {
-        uint64_t BlockFreq = BFI.getBlockFreq(&BB).getFrequency();
-
-        for (Instruction &I : BB) {
-            auto *GEP = dyn_cast<GetElementPtrInst>(&I);
-            if (!GEP)
-                continue;
-
-            const StructType *ST = getGEPStructType(GEP);
-            if (!ST || !isCandidateStruct(ST))
-                continue;
-
-            auto FieldIdxOpt = getStructFieldIndex(GEP);
-            if (!FieldIdxOpt)
-                continue;
-
-            unsigned FieldIdx = *FieldIdxOpt;
-
-            auto &Vec = Weights[ST];
-            if (Vec.size() <= FieldIdx)
-                Vec.resize(FieldIdx + 1, 0);
-
-            Vec[FieldIdx] += BlockFreq;
-        }
-    }
-
-    // Classify hot/cold fields
-    for (auto &Entry : Weights) {
-        const StructType *ST = Entry.first;
-        const std::vector<uint64_t> &FieldW = Entry.second;
-
-        uint64_t MaxW = 0;
-        double SumW = 0.0;
-        for (uint64_t W : FieldW) {
-            MaxW = std::max(MaxW, W);
-            SumW += (double)W;
-        }
-
-        if (MaxW == 0)
-            continue;
-
-        SmallVector<unsigned, 8> HotFields, ColdFields;
-        for (unsigned i = 0; i < FieldW.size(); ++i) {
-            if (FieldW[i] > 0)
-                HotFields.push_back(i);
-            else
-                ColdFields.push_back(i);
-        }
-
-        errs() << "[HFTHotCold] Struct " << ST->getName() << "\n";
-        errs() << "  Field weights (on_message only): ";
-        for (unsigned i = 0; i < FieldW.size(); ++i) {
-            errs() << "#" << i << "=" << FieldW[i];
-            if (i + 1 < FieldW.size()) errs() << ", ";
-        }
-        errs() << "\n";
-
-        errs() << "  Hot fields: {";
-        for (size_t i = 0; i < HotFields.size(); ++i) {
-            errs() << HotFields[i];
-            if (i + 1 < HotFields.size()) errs() << ", ";
-        }
-        errs() << "}\n";
-
-        errs() << "  Cold fields: {";
-        for (size_t i = 0; i < ColdFields.size(); ++i) {
-            errs() << ColdFields[i];
-            if (i + 1 < ColdFields.size()) errs() << ", ";
-        }
-        errs() << "}\n\n";
-    }
-
-    return PreservedAnalyses::all();
-  }
-};
+  return std::nullopt;
+}
 
 struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPass> {
-  static constexpr unsigned HotFieldCount = 3; // fields 0,1,2 are hot
-
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM) {
     LLVMContext &Ctx = M.getContext();
 
@@ -193,6 +98,91 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
       return PreservedAnalyses::all();
     }
 
+    // --- 2. Compute dynamic field weights for OrderBookLevel using BFI ---
+
+    FieldWeightsTy Weights;
+
+    // Get the FunctionAnalysisManager from the ModuleAnalysisManager
+    auto &FAMProxy = MAM.getResult<FunctionAnalysisManagerModuleProxy>(M);
+    FunctionAnalysisManager &FAM = FAMProxy.getManager();
+
+    for (Function &F : M) {
+      if (F.isDeclaration())
+        continue;
+
+      // Only care about the hot path function
+      if (!F.getName().contains("on_message"))
+        continue;
+
+      auto &BFI = FAM.getResult<BlockFrequencyAnalysis>(F);
+
+      for (BasicBlock &BB : F) {
+        uint64_t BlockFreq = BFI.getBlockFreq(&BB).getFrequency();
+
+        for (Instruction &I : BB) {
+          auto *GEP = dyn_cast<GetElementPtrInst>(&I);
+          if (!GEP)
+            continue;
+
+          const StructType *ST = getGEPStructType(GEP);
+          if (!ST || !isCandidateStruct(ST))
+            continue;
+
+          auto FieldIdxOpt = getStructFieldIndex(GEP);
+          if (!FieldIdxOpt)
+            continue;
+
+          unsigned FieldIdx = *FieldIdxOpt;
+          auto &Vec = Weights[ST];
+          if (Vec.size() <= FieldIdx)
+            Vec.resize(FieldIdx + 1, 0);
+
+          Vec[FieldIdx] += BlockFreq;
+        }
+      }
+    }
+
+    // Extract weights for *our* OrderBook type
+    auto It = Weights.find(OrderBookTy);
+    if (It == Weights.end()) {
+      errs() << "[HFTHotColdSplit] No dynamic field weights for OrderBookLevel; aborting.\n";
+      return PreservedAnalyses::all();
+    }
+
+    const std::vector<uint64_t> &FieldW = It->second;
+
+    SmallVector<unsigned, 8> HotFieldIdxs, ColdFieldIdxs;
+    for (unsigned i = 0; i < FieldW.size(); ++i) {
+      if (FieldW[i] > 0)
+        HotFieldIdxs.push_back(i);
+      else
+        ColdFieldIdxs.push_back(i);
+    }
+
+    if (HotFieldIdxs.empty()) {
+      errs() << "[HFTHotColdSplit] No hot fields found; aborting.\n";
+      return PreservedAnalyses::all();
+    }
+
+    errs() << "[HFTHotColdSplit] Dynamic hot fields for " << OrderBookTy->getName() << " = {";
+    for (unsigned i = 0; i < HotFieldIdxs.size(); ++i) {
+      errs() << HotFieldIdxs[i];
+      if (i + 1 < HotFieldIdxs.size()) errs() << ", ";
+    }
+    errs() << "}\n";
+
+    // For simplicity, require that the hot set is exactly {0,1,2}.
+    if (!(HotFieldIdxs.size() == 3 &&
+          HotFieldIdxs[0] == 0 &&
+          HotFieldIdxs[1] == 1 &&
+          HotFieldIdxs[2] == 2)) {
+      errs() << "[HFTHotColdSplit] Hot fields are not exactly {0,1,2}; skipping split.\n";
+      return PreservedAnalyses::all();
+    }
+
+    unsigned HotFieldCount = HotFieldIdxs.size();
+
+    // 3. Split type into hot/cold according to HotFieldCount.
     ArrayRef<Type *> Elems = OrderBookTy->elements();
     unsigned NumFields = Elems.size();
 
@@ -204,7 +194,6 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
       return PreservedAnalyses::all();
     }
 
-    // 2. Build hot and cold field type lists.
     SmallVector<Type *, 8> HotFields;
     SmallVector<Type *, 8> ColdFields;
     for (unsigned i = 0; i < NumFields; ++i) {
@@ -214,7 +203,6 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
         ColdFields.push_back(Elems[i]);
     }
 
-    // 3. Create hot/cold struct types.
     std::string BaseName = std::string(OrderBookTy->getName());
     std::string HotName  = BaseName + ".hot";
     std::string ColdName = BaseName + ".cold";
@@ -298,8 +286,7 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
 
     bool Changed = false;
 
-    // 6. For each function, rewrite *field* GEPs whose struct pointer
-    //    ultimately comes from bids[] / asks[].
+    // 6. For each function, rewrite struct field GEPs whose base comes from bids[] / asks[].
     for (Function &F : M) {
       if (F.isDeclaration())
         continue;
@@ -313,14 +300,11 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
           if (!GEP)
             continue;
 
-          // We want GEPs whose source element type is the struct itself:
-          //   %field = getelementptr %struct.OrderBookLevel, ptr %elem, i32 0, i32 field
           Type *SrcTy = GEP->getSourceElementType();
           auto *ST = dyn_cast<StructType>(SrcTy);
           if (!ST || ST != OrderBookTy)
             continue;
 
-          // Need at least [0, field]
           if (GEP->getNumIndices() < 2)
             continue;
 
@@ -329,7 +313,7 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
           Value *FieldIdxV = IdxIt->get();
           auto *FieldCI = dyn_cast<ConstantInt>(FieldIdxV);
           if (!FieldCI)
-            continue; // only handle constant field idx
+            continue;
 
           FieldGEPs.push_back(GEP);
         }
@@ -345,11 +329,6 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
 
         Value *StructPtr = FieldGEP->getPointerOperand();
 
-        // We expect StructPtr to be an array-element GEP:
-        //
-        //   %elem = getelementptr [N x %struct.OrderBookLevel],
-        //                      ptr @bids/@asks, i64 0, i64 %level
-        //
         auto *ElemGEP = dyn_cast<GetElementPtrInst>(StructPtr);
         if (!ElemGEP)
           continue;
@@ -359,7 +338,6 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
         if (!ArrTy || ArrTy->getElementType() != OrderBookTy)
           continue;
 
-        // Expect [0, level]
         if (ElemGEP->getNumIndices() != 2)
           continue;
 
@@ -375,20 +353,16 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
 
         IRBuilder<> B(FieldGEP);
 
-        // Choose the appropriate hot/cold globals + array types.
         GlobalVariable *HotGV  = IsBids ? BidsHotGV  : AsksHotGV;
         GlobalVariable *ColdGV = IsBids ? BidsColdGV : AsksColdGV;
         ArrayType     *HotArr  = IsBids ? BidsHotArrayTy  : AsksHotArrayTy;
         ArrayType     *ColdArr = IsBids ? BidsColdArrayTy : AsksColdArrayTy;
 
-        // GEP 1: element pointer into hot/cold array: [0, level]
         Value *NewElemPtr;
         Value *NewFieldPtr;
-
         Value *ZeroI32 = ConstantInt::get(Type::getInt32Ty(Ctx), 0);
 
         if (FieldIdx < HotFieldCount) {
-          // Hot field: go through HotTy
           NewElemPtr = B.CreateGEP(
               HotArr, HotGV, {Idx0, LevelIdx},
               ElemGEP->getName() + ".hot.elem");
@@ -396,12 +370,10 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
           Value *HotFieldCI =
               ConstantInt::get(Type::getInt32Ty(Ctx), FieldIdx);
 
-          // GEP 2: struct-field GEP on HotTy: [0, HotFieldIdx]
           NewFieldPtr = B.CreateGEP(
               HotTy, NewElemPtr, {ZeroI32, HotFieldCI},
               FieldGEP->getName() + ".hot");
         } else {
-          // Cold field: index into ColdTy with adjusted index.
           unsigned ColdFieldIdx = FieldIdx - HotFieldCount;
           NewElemPtr = B.CreateGEP(
               ColdArr, ColdGV, {Idx0, LevelIdx},
@@ -418,8 +390,6 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
         FieldGEP->replaceAllUsesWith(NewFieldPtr);
         FieldGEP->eraseFromParent();
         Changed = true;
-
-        // ElemGEP will likely become dead and be DCE'd later; no need to force-delete here.
       }
     }
 
@@ -462,10 +432,6 @@ extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginIn
             FPM.addPass(HFTPrintPass());
             return true;
           }
-          if (Name == "hft-hotcold") {
-            FPM.addPass(HFTHotColdSplitPass());
-            return true;
-          }
           return false;
         }
       );
@@ -475,7 +441,7 @@ extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginIn
            ArrayRef<PassBuilder::PipelineElement>) {
 
           if (Name == "hft-split") {
-            MPM.addPass(HFTHotColdStructSplitPass()); // Pass 2 (type split)
+            MPM.addPass(HFTHotColdStructSplitPass());
             return true;
           }
           return false;
