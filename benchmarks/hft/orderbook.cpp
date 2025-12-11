@@ -3,6 +3,7 @@
 #include <vector>
 #include <random>
 #include <cmath>
+#include <stddef.h>
 #include <chrono>
 #include <iostream>
 
@@ -16,15 +17,19 @@ struct [[clang::annotate("hft_struct")]] OrderBookLevel {
     uint64_t last_update_ts_ns; // when current level was last touched (ns)
     uint32_t venue_id; // id of venue or exchange this level comes from
     uint32_t padding; // alignment/padding to get a nice memory layout
+
+    double   ewma_spread;       // some analytics
+    double   ewma_depth;        // analytics
+    double   variance_estimate;
+    double   volatility_bucket;
+
+    uint64_t slow_stats[8];     // fake heavy stats
 };
 
-struct OrderBook {
-    static constexpr int MAX_LEVELS = 64;
-    OrderBookLevel bids[MAX_LEVELS];
-    OrderBookLevel asks[MAX_LEVELS];
-
-    std::atomic<uint64_t> seq_no;
-};
+static constexpr int MAX_LEVELS = 4096;
+OrderBookLevel bids[MAX_LEVELS];
+OrderBookLevel asks[MAX_LEVELS];
+std::atomic<uint64_t> seq_no;
 
 enum class MsgType:uint8_t {
     Add,
@@ -41,23 +46,49 @@ struct Message {
 };
 
 struct Engine {
-    OrderBook ob;
-
     Engine() {
-        ob.seq_no.store(0, std::memory_order_relaxed);
+        seq_no.store(0, std::memory_order_relaxed);
 
-        for (int i = 0; i < OrderBook::MAX_LEVELS; i++) {
-            ob.bids[i].price = 100.0 - i * 0.01;
-            ob.asks[i].price = 100.0 + i * 0.01;
-            ob.bids[i].size = 0;
-            ob.asks[i].size = 0;
-            ob.bids[i].order_count = 0;
-            ob.asks[i].order_count = 0;
+        for (int i = 0; i < MAX_LEVELS; i++) {
+            bids[i].price = 100.0 - i * 0.01;
+            asks[i].price = 100.0 + i * 0.01;
+
+            bids[i].size = 0;
+            asks[i].size = 0;
+
+            bids[i].order_count = 0;
+            asks[i].order_count = 0;
+
+            bids[i].last_update_ts_ns = 0;
+            asks[i].last_update_ts_ns = 0;
+
+            bids[i].venue_id = 1;
+            asks[i].venue_id = 2;
+
+            bids[i].padding = 0;
+            asks[i].padding = 0;
+
+            bids[i].ewma_spread = 0.0;
+            asks[i].ewma_spread = 0.0;
+
+            bids[i].ewma_depth = 0.0;
+            asks[i].ewma_depth = 0.0;
+
+            bids[i].variance_estimate = 0.0;
+            asks[i].variance_estimate = 0.0;
+
+            bids[i].volatility_bucket = 0.0;
+            asks[i].volatility_bucket = 0.0;
+
+            for (int j = 0; j < 8; j++) {
+                bids[i].slow_stats[j] = 0;
+                asks[i].slow_stats[j] = 0;
+            }
         }
     }
 
     inline void on_message(const Message &m) {
-        OrderBookLevel *side = m.is_bid ? ob.bids : ob.asks;
+        OrderBookLevel *side = m.is_bid ? bids : asks;
         auto &lvl = side[m.level];
 
         switch (m.type) {
@@ -78,8 +109,19 @@ struct Engine {
         }
 
         // "Concurrency-friendly" but single-threaded in practice
-        ob.seq_no.fetch_add(1, std::memory_order_relaxed);
-        lvl.last_update_ts_ns += 1;
+        
+        seq_no.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    inline void refresh_cold_fields(int level, bool is_bid) {
+        OrderBookLevel *side = is_bid ? bids : asks;
+        auto &lvl = side[level];
+
+        lvl.ewma_spread           += 0.0001;
+        lvl.ewma_depth            += 0.0002;
+        lvl.variance_estimate     += 0.00005;
+        lvl.volatility_bucket     += 0.00001;
+        lvl.slow_stats[level % 8] += 1;
     }
 };
 
@@ -91,7 +133,7 @@ int main() {
     msgs.reserve(N_MESSAGES);
 
     std::mt19937_64 rng(12345);
-    std::uniform_int_distribution<int> level_dist(0, OrderBook::MAX_LEVELS - 1);
+    std::uniform_int_distribution<int> level_dist(0, MAX_LEVELS - 1);
     std::uniform_int_distribution<int> size_dist(1, 100);
     std::uniform_real_distribution<double> price_dist(99.5, 100.5);
     std::uniform_int_distribution<int> type_dist(0, 2);
@@ -108,8 +150,14 @@ int main() {
     }
 
     auto start = std::chrono::high_resolution_clock::now();
-    for (const auto &m : msgs) {
+    for (int i = 0; i < N_MESSAGES; i++) {
+        const auto &m = msgs[i];
         engine.on_message(m);
+
+        // Rare cold analytics (baseline touches cold stuff always AND sometimes here)
+        if ((i & 0x3FFF) == 0) {
+            engine.refresh_cold_fields(m.level, m.is_bid);
+        }
     }
     auto end = std::chrono::high_resolution_clock::now();
 
@@ -119,6 +167,6 @@ int main() {
               << elapsed.count() << " s (" << msgs_per_sec << " msg/s)\n";
 
     // Prevent optimizer from throwing everything away
-    std::cout << "Final seq_no = " << engine.ob.seq_no.load() << "\n";
+    std::cout << "Final seq_no = " << seq_no.load() << "\n";
     return 0;
 }

@@ -34,7 +34,8 @@ fi
 
 PASSES=(
   "baseline"  # normal wo any passes applied
-  "hft-print" # diagnostic print test pass
+#   "hft-print" # diagnostic print test pass
+  "hft-hotcold" # test
 )
 
 cd "$(dirname "$SRC_FILE")"
