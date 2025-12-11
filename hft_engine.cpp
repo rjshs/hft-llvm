@@ -41,7 +41,7 @@ struct Message {
 };
 
 struct Engine {
-    Oderbook ob;
+    OrderBook ob;
 
     Engine() {
         ob.seq_no.store(0, std::memory_order_relaxed);
