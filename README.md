@@ -3,9 +3,5 @@ Utilizes LLVM-based compilation pipeline that compiles C++ order book engines in
 
 
 # How to run
-- mkdir build
-- cd build
-- cmake ..
-- make
-- cd ~/hft-llvm
+- ./build.sh
 - ./run.sh -c benchmarks/hft/orderbook.cpp
