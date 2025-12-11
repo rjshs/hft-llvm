@@ -152,8 +152,9 @@ rematerializeAddr(llvm::Value *V, llvm::IRBuilder<> &B,
       auto *Op0 = rematerializeAddr(ASC->getOperand(0), B, Cache);
       auto *New = B.CreateAddrSpaceCast(Op0, ASC->getType(), ASC->getName() + ".rm");
       Cache[V] = New; return New;
+    } else {
+      Cache[V] = V; return V; // fallback: assume dominates
     }
-    Cache[V] = V; return V; // fallback: assume dominates
   }
   Cache[V] = V; return V;   // constants/args/globals
 }
@@ -197,6 +198,10 @@ static bool processLoop(llvm::Loop &L,
       if (Ld->isVolatile() || Ld->isAtomic()) continue;
 
       Value *Ptr = Ld->getPointerOperand();
+
+      if (!L.isLoopInvariant(Ptr)) {
+        continue;
+      }
 
       // Must be almost-invariant: no store to the SAME POINTER SSA on the frequent path
       bool StoreOnFP = false;

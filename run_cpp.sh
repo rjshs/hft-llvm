@@ -116,30 +116,18 @@ $COMPILER -emit-llvm -c "$FILE_BASENAME" -Xclang -disable-O0-optnone -o ${FILENA
 # Canonicalize natural loops (Ref: llvm.org/doxygen/LoopSimplify_8h_source.html)
 opt -passes='loop-simplify' ${FILENAME}.bc -o ${FILENAME}.ls.bc
 
-# Instrument profiler passes.
-opt -passes='pgo-instr-gen,instrprof' ${FILENAME}.ls.bc -o ${FILENAME}.ls.prof.bc
-
-# Generate binary executable with profiler embedded
-$COMPILER -fprofile-instr-generate ${FILENAME}.ls.prof.bc -o ${FILENAME}_prof
-
-# When we run the profiler embedded executable, it generates a default.profraw file that contains the profile data.
-./${FILENAME}_prof > correct_output
-
-# Converting it to LLVM form. This step can also be used to combine multiple profraw files,
-# in case you want to include different profile runs together.
-llvm-profdata merge -o ${FILENAME}.profdata default.profraw
-
-# The "Profile Guided Optimization Use" pass attaches the profile data to the bc file.
-opt -passes="pgo-instr-use" -o ${FILENAME}.profdata.bc -pgo-test-profile-file=${FILENAME}.profdata < ${FILENAME}.ls.prof.bc > /dev/null
-
-# We now use the profile augmented bc file as input to your pass.
-opt -S -load-pass-plugin="${PATH2LIB}" -passes="${SELECTED_PASS}" ${FILENAME}.profdata.bc -o ${FILENAME}.fplicm.bc > /dev/null
+opt -S -load-pass-plugin="${PATH2LIB}" \
+    -passes="${SELECTED_PASS}" \
+    ${FILENAME}.ls.bc -o ${FILENAME}.fplicm.bc > /dev/null
 
 $COMPILER ${FILENAME}.ls.bc -o ${FILENAME}_no_fplicm
 $COMPILER ${FILENAME}.fplicm.bc -o ${FILENAME}_fplicm
 
 # Produce output from binary to check correctness
+./${FILENAME}_no_fplicm > correct_output
+
 ./${FILENAME}_fplicm > fplicm_output
+
 
 echo -e "\n=== Program Correctness Validation ==="
 if [ "$(diff correct_output fplicm_output)" != "" ]; then
@@ -206,6 +194,7 @@ if $generate_viz; then
 fi
 
 # Cleanup: Remove this if you want to retain the created files.
+# rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll
 rm -f default.profraw *_prof *_fplicm *.bc *.profdata *.ll
 
 cd $CURRENT_DIR
