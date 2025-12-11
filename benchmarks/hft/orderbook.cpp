@@ -23,7 +23,8 @@ struct [[clang::annotate("hft_struct")]] OrderBookLevel {
     double   variance_estimate;
     double   volatility_bucket;
 
-    uint64_t slow_stats[8];     // fake heavy stats
+    uint64_t slow_stats[1024];     // fake heavy stats
+    double cold_padding[1024];
 };
 
 static constexpr int MAX_LEVELS = 4096;
@@ -46,6 +47,7 @@ struct Message {
 };
 
 struct Engine {
+    double price_sticky = 0.0;
     Engine() {
         seq_no.store(0, std::memory_order_relaxed);
 
@@ -80,7 +82,7 @@ struct Engine {
             bids[i].volatility_bucket = 0.0;
             asks[i].volatility_bucket = 0.0;
 
-            for (int j = 0; j < 8; j++) {
+            for (int j = 0; j < 1024; j++) {
                 bids[i].slow_stats[j] = 0;
                 asks[i].slow_stats[j] = 0;
             }
@@ -88,8 +90,30 @@ struct Engine {
     }
 
     inline void on_message(const Message &m) {
-        OrderBookLevel *side = m.is_bid ? bids : asks;
-        auto &lvl = side[m.level];
+    const int level = m.level;
+    double hot_acc = 0.0;
+
+    if (m.is_bid) {
+        auto &lvl = bids[level];
+
+        switch (m.type) {
+        case MsgType::Add:
+            lvl.price = m.price;
+            lvl.size += m.delta_size;
+            ++lvl.order_count;
+            break;
+        case MsgType::Cancel:
+            lvl.size -= m.delta_size;
+            if (lvl.size < 0) lvl.size = 0;
+            if (lvl.order_count > 0) --lvl.order_count;
+            break;
+        case MsgType::Modify:
+            lvl.size += m.delta_size;
+            lvl.price = m.price;
+            break;
+        }
+    } else {
+        auto &lvl = asks[level];
 
         switch (m.type) {
         case MsgType::Add:
@@ -108,10 +132,15 @@ struct Engine {
             break;
         }
 
-        // "Concurrency-friendly" but single-threaded in practice
-        
-        seq_no.fetch_add(1, std::memory_order_relaxed);
+        for (int k = 0; k < 256; ++k) {
+            int idx = (level + k) & (MAX_LEVELS - 1);
+            hot_acc += asks[idx].size;       // direct use of global asks
+        }
     }
+
+    price_sticky += hot_acc * 1e-10;
+    seq_no.fetch_add(1, std::memory_order_relaxed);
+}
 
     inline void refresh_cold_fields(int level, bool is_bid) {
         OrderBookLevel *side = is_bid ? bids : asks;
@@ -154,8 +183,7 @@ int main() {
         const auto &m = msgs[i];
         engine.on_message(m);
 
-        // Rare cold analytics (baseline touches cold stuff always AND sometimes here)
-        if ((i & 0x3FFF) == 0) {
+        if ((i & 0xF) == 0) {   // every 256 messages 
             engine.refresh_cold_fields(m.level, m.is_bid);
         }
     }
