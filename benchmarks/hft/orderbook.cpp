@@ -3,17 +3,10 @@
 //   (e.g., backtesting / monitoring / simulations)
 // - UNNECESSARY in production when we run a pinned, single-threaded engine
 
-// This function contains atomic operations that are:
-// - NECESSARY in environments where stats are read from other threads
-//   (e.g., backtesting / monitoring / simulations)
-// - UNNECESSARY in production when we run a pinned, single-threaded engine
-
 #include <cstdint>
 #include <atomic>
 #include <array>
-#include <array>
 #include <vector>
-#include <algorithm>
 #include <algorithm>
 #include <random>
 #include <chrono>
@@ -21,9 +14,7 @@
 #include <cstring>
 #include <cassert>
 
-//=============================================================================
 // CONFIGURATION
-//=============================================================================
 
 namespace config {
     // Book depth - typical for equity/futures markets
@@ -41,11 +32,13 @@ namespace config {
     
     // Reference price for the book
     constexpr double REFERENCE_PRICE = 100.00;
+    
+    // Number of correlated levels to update (for prefetch demo)
+    // Needs to be large enough for prefetching to be beneficial
+    constexpr int NUM_CORRELATED = 32;
 }
 
-//=============================================================================
 // Analytics
-//=============================================================================
 struct [[clang::annotate("hft_struct")]] LevelAnalytics {
     // ---------------- HOT FIELDS (hit every message) -----------------
     double mid_imbalance;      // imbalance around best prices
@@ -73,9 +66,31 @@ struct [[clang::annotate("hft_struct")]] LevelAnalytics {
 LevelAnalytics bidAnalytics[config::MAX_PRICE_LEVELS];
 LevelAnalytics askAnalytics[config::MAX_PRICE_LEVELS];
 
-//=============================================================================
+// OPTIMIZATION TARGETS - Added for compiler pass demonstrations
+
+// [PREFETCH TARGET] Correlated levels lookup table
+// When price at level X moves, correlated levels also need updating
+// This creates INDIRECT memory access that hardware prefetch cannot predict
+alignas(64) int g_correlated_levels[config::MAX_PRICE_LEVELS][config::NUM_CORRELATED];
+
+// [BRANCHLESS TARGET] Side accumulators - updated every message
+// Simple struct where bid/ask selection is a 50/50 branch
+struct alignas(64) SideAccumulators {
+    double bid_value;
+    double ask_value;
+} g_accumulators{};
+
+// Initialize correlation table (simulates price correlation in real markets)
+void initCorrelatedLevels() {
+    for (int i = 0; i < config::MAX_PRICE_LEVELS; ++i) {
+        for (int j = 0; j < config::NUM_CORRELATED; ++j) {
+            // Pseudo-random but deterministic correlation pattern
+            g_correlated_levels[i][j] = (i * 7 + j * 31 + j * j) % config::MAX_PRICE_LEVELS;
+        }
+    }
+}
+
 // TYPE DEFINITIONS
-//=============================================================================
 
 using Price = int64_t;      // Price in ticks (fixed-point, avoids FP issues)
 using Quantity = int32_t;   // Order quantity
@@ -92,10 +107,8 @@ inline double ticksToPrice(Price ticks) {
     return ticks * config::TICK_SIZE;
 }
 
-//=============================================================================
 // MARKET DATA MESSAGE TYPES
 // These mirror real exchange feed formats (e.g., ITCH, PITCH, OPRA)
-//=============================================================================
 
 enum class MessageType : uint8_t {
     ADD = 'A',      // New order added to book
@@ -124,9 +137,7 @@ struct __attribute__((packed)) MarketDataMessage {
 
 static_assert(sizeof(MarketDataMessage) == 40, "Message size mismatch");
 
-//=============================================================================
 // ORDER REPRESENTATION
-//=============================================================================
 
 struct Order {
     OrderId id;
@@ -138,10 +149,8 @@ struct Order {
         : id(id_), quantity(qty), timestamp(ts) {}
 };
 
-//=============================================================================
 // PRICE LEVEL
 // Represents all orders at a single price point with FIFO queue
-//=============================================================================
 
 struct PriceLevel {
     Price price;
@@ -185,10 +194,8 @@ struct PriceLevel {
     }
 };
 
-//=============================================================================
 // BOOK STATISTICS
 // Tracked atomically for thread-safe access in backtesting
-//=============================================================================
 
 struct alignas(64) BookStatistics {
     // Message counters
@@ -243,9 +250,7 @@ struct alignas(64) BookStatistics {
     }
 };
 
-//=============================================================================
 // ORDER BOOK - One Side (Bid or Ask)
-//=============================================================================
 
 class BookSide {
 public:
@@ -353,9 +358,7 @@ private:
     std::array<PriceLevel, config::MAX_PRICE_LEVELS> levels_;
 };
 
-//=============================================================================
 // FULL ORDER BOOK
-//=============================================================================
 
 class OrderBook {
 public:
@@ -394,10 +397,8 @@ private:
 
 void onAnalyticsUpdate(const MarketDataMessage& msg);
 
-//=============================================================================
 // MARKET DATA HANDLER
 // Core message processing engine - this is the HOT PATH
-//=============================================================================
 class MarketDataHandler {
 public:
     MarketDataHandler() {
@@ -405,7 +406,6 @@ public:
         book_.clear();
     }
     
-    //=========================================================================
     // MAIN HOT PATH - Called for every market data message
     //
     // This function contains atomic operations that are:
@@ -413,7 +413,6 @@ public:
     // - UNNECESSARY in production (single-threaded, pinned core)
     //
     // Our compiler pass elides these atomics in production builds.
-    //=========================================================================
     
     __attribute__((noinline))  // Keep separate for profiling
     void onMessage(const MarketDataMessage& msg) {
@@ -546,10 +545,8 @@ private:
     BookStatistics stats_;
 };
 
-//=============================================================================
 // MESSAGE GENERATOR
 // Creates realistic market data for benchmarking
-//=============================================================================
 
 class MessageGenerator {
 public:
@@ -610,9 +607,7 @@ private:
     std::mt19937_64 rng_;
 };
 
-//=============================================================================
 // BENCHMARK HARNESS
-//=============================================================================
 
 void printStatistics(const BookStatistics& stats) {
     std::cout << "\n=== Book Statistics ===\n";
@@ -642,72 +637,94 @@ void printStatistics(const BookStatistics& stats) {
         std::cout << "  Avg: " << stats.latency_sum.load() / msgs << " ns\n";
     }
     std::cout << "  Max: " << stats.max_latency_ns.load() << " ns\n";
+    
+    // Print accumulators to prevent DCE
+    std::cout << "\nAccumulators: bid=" << g_accumulators.bid_value 
+              << " ask=" << g_accumulators.ask_value << "\n";
 }
 
+// [PREFETCH TARGET] Update correlated price levels
+// INDIRECT MEMORY ACCESS - Hardware prefetch CANNOT predict these accesses
+__attribute__((noinline))
+void updateCorrelatedLevels(int base_level, LevelAnalytics* analytics, double delta) {
+    const int* correlated = g_correlated_levels[base_level];
+    
+    // This loop has INDIRECT memory access pattern:
+    //   analytics[correlated[i]] where correlated[i] is unpredictable
+    // Hardware prefetcher sees: arr[?], arr[?], arr[?] - cannot prefetch ahead
+    // Software prefetch CAN help by looking up correlated[i+N] early
+    for (int i = 0; i < config::NUM_CORRELATED; ++i) {
+        int target = correlated[i];
+        analytics[target].queue_pressure += delta;
+        analytics[target].mid_imbalance *= 0.999;  // Tiny decay
+    }
+}
+
+// [BRANCHLESS TARGET] Update side accumulator
+// 50/50 UNPREDICTABLE BRANCH - CPU branch predictor wrong half the time
+__attribute__((noinline))
+void updateSideAccumulator(Side side, double value) {
+    // This branch is unpredictable (50% bid, 50% ask)
+    // CPU mispredicts ~50% = ~12-15 cycle penalty each time
+    // Converting to CMOV eliminates misprediction entirely
+    if (side == Side::BID) {
+        g_accumulators.bid_value += value;
+    } else {
+        g_accumulators.ask_value += value;
+    }
+}
+
+// ANALYTICS UPDATE - Hot path combining both optimization targets
 __attribute__((noinline))
 void onAnalyticsUpdate(const MarketDataMessage& msg) {
     const int level = msg.price % config::MAX_PRICE_LEVELS;
-
+    const double qty_factor = msg.quantity * 0.001;
+    
+    // [BRANCHLESS TARGET] Select analytics array based on side
+    // This is a 50/50 branch - perfect CMOV candidate
+    LevelAnalytics* analytics;
+    double direction;
     if (msg.side == Side::BID) {
-        auto& lvl = bidAnalytics[level];
-
-        // Hot fields
-        lvl.mid_imbalance =
-            lvl.mid_imbalance * 0.9 + (lvl.queue_pressure * 0.1);
-        lvl.queue_pressure =
-            (double)lvl.last_update_ts_ns * 0.001;
-        lvl.micro_volatility =
-            std::abs((int)msg.quantity - 50) * 0.02;
-
-        // Hot loop across ALL BID levels
-        double acc = 0.0;
-        for (int i = 0; i < config::MAX_PRICE_LEVELS; ++i) {
-            acc += bidAnalytics[i].mid_imbalance +
-                   bidAnalytics[i].queue_pressure +
-                   bidAnalytics[i].micro_volatility;
-        }
-
-        // Semi-hot fields
-        lvl.short_term_alpha = acc * 1e-6;
-        lvl.last_price_move = 1.0;
-        lvl.last_update_ts_ns = msg.local_ts;
-
+        analytics = bidAnalytics;
+        direction = 1.0;
     } else {
-        auto& lvl = askAnalytics[level];
-
-        // Hot fields
-        lvl.mid_imbalance =
-            lvl.mid_imbalance * 0.9 + (lvl.queue_pressure * 0.1);
-        lvl.queue_pressure =
-            (double)lvl.last_update_ts_ns * 0.001;
-        lvl.micro_volatility =
-            std::abs((int)msg.quantity - 50) * 0.02;
-
-        // Hot loop across ALL ASK levels
-        double acc = 0.0;
-        for (int i = 0; i < config::MAX_PRICE_LEVELS; ++i) {
-            acc += askAnalytics[i].mid_imbalance +
-                   askAnalytics[i].queue_pressure +
-                   askAnalytics[i].micro_volatility;
-        }
-
-        // Semi-hot fields
-        lvl.short_term_alpha = acc * 1e-6;
-        lvl.last_price_move = -1.0;
-        lvl.last_update_ts_ns = msg.local_ts;
+        analytics = askAnalytics;
+        direction = -1.0;
     }
+    
+    auto& lvl = analytics[level];
+    
+    // Hot field updates
+    lvl.mid_imbalance = lvl.mid_imbalance * 0.9 + (lvl.queue_pressure * 0.1);
+    lvl.queue_pressure = (double)lvl.last_update_ts_ns * 0.001;
+    lvl.micro_volatility = std::abs((int)msg.quantity - 50) * 0.02;
+    
+    // [PREFETCH TARGET] Update correlated levels with indirect access
+    updateCorrelatedLevels(level, analytics, qty_factor * direction);
+    
+    // Semi-hot fields
+    lvl.short_term_alpha = lvl.mid_imbalance * 1e-6;
+    lvl.last_price_move = direction;
+    lvl.last_update_ts_ns = msg.local_ts;
+    
+    // [BRANCHLESS TARGET] Accumulator update - 50/50 branch
+    updateSideAccumulator(msg.side, qty_factor);
 }
 
 int main() {
     std::cout << "===========================================\n";
-    std::cout << "HFT Order Book Engine - Atomic Elision Demo\n";
+    std::cout << "HFT Order Book Engine - Optimization Demo\n";
     std::cout << "===========================================\n";
     std::cout << "\n";
     std::cout << "Configuration:\n";
     std::cout << "  Messages:     " << config::NUM_MESSAGES << "\n";
     std::cout << "  Price levels: " << config::MAX_PRICE_LEVELS << "\n";
+    std::cout << "  Correlated:   " << config::NUM_CORRELATED << "\n";
     std::cout << "  Tick size:    $" << config::TICK_SIZE << "\n";
     std::cout << "\n";
+    
+    // Initialize correlation table
+    initCorrelatedLevels();
     
     // Initialize
     MarketDataHandler handler;
@@ -716,18 +733,6 @@ int main() {
     std::cout << "Generating market data messages...\n";
     auto messages = generator.generate(config::NUM_MESSAGES);
     
-    std::cout << "Processing messages...\n";
-    
-    // Benchmark
-    std::cout << "===========================================\n";
-    std::cout << "HFT Order Book Engine - Atomic Elision Demo\n";
-    std::cout << "===========================================\n";
-    std::cout << "\n";
-    std::cout << "Configuration:\n";
-    std::cout << "  Messages:     " << config::NUM_MESSAGES << "\n";
-    std::cout << "  Price levels: " << config::MAX_PRICE_LEVELS << "\n";
-    std::cout << "  Tick size:    $" << config::TICK_SIZE << "\n";
-    std::cout << "\n";
     std::cout << "Processing messages...\n";
     
     // Benchmark
