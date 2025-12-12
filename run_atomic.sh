@@ -1,92 +1,3 @@
-# #!/usr/bin/env bash
-# set -e
-
-# # Path to your atomic pass shared library.
-# # Adjust this if your CMake target/path is different.
-# LIB="build/hft_atomic/HFTAtomic.so"
-# if [ ! -f "$LIB" ]; then
-#   echo "HFTAtomicPass.so not found at $LIB; build first."
-#   exit 1
-# fi
-
-# PATH2LIB=$(realpath "$LIB")
-
-# if [ $# -lt 1 ]; then
-#   echo "Usage: $0 <source.cpp>"
-#   exit 1
-# fi
-
-# SRC_FILE=$1
-# if [ ! -f "$SRC_FILE" ]; then
-#   echo "Error: $SRC_FILE is not a file"
-#   exit 1
-# fi
-
-# CURRENT_DIR=$(pwd)
-# FILE_BASENAME=$(basename "$SRC_FILE")
-# FILENAME=${FILE_BASENAME%.*}
-# EXT=${FILE_BASENAME##*.}
-
-# # Choose C vs C++
-# if [ "$EXT" = "c" ]; then
-#   COMPILER=/usr/local/bin/clang
-# else
-#   COMPILER=/usr/local/bin/clang++
-# fi
-
-# PASSES=(
-#   "baseline"     # just loop-simplify
-#   "hft-atomic-elision"   # your atomic pass
-# )
-
-# # Work in the source directory so the binaries sit next to the .cpp
-# cd "$(dirname "$SRC_FILE")"
-
-# # Clean old junk
-# rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll \
-#       ${FILENAME}_* 2>/dev/null || true
-
-# # 1) Compile to LLVM bitcode (IR). Same as run_hft.
-# $COMPILER -emit-llvm -c "$FILE_BASENAME" \
-#   -Xclang -disable-O0-optnone \
-#   -o ${FILENAME}.bc
-
-# # 2) Normalize loops so passes are happy.
-# opt -passes='loop-simplify' ${FILENAME}.bc -o ${FILENAME}.ls.bc
-
-# echo
-# echo "Atomic timing for $FILE_BASENAME"
-
-# for PIPELINE in "${PASSES[@]}"; do
-#   if [ "$PIPELINE" = "baseline" ]; then
-#     OUT_BC="${FILENAME}.baseline.bc"
-#     BIN="${FILENAME}_baseline"
-#     cp ${FILENAME}.ls.bc "$OUT_BC"
-#     echo
-#     echo "--- Pipeline: baseline (loop-simplify only) ---"
-#   else
-#     OUT_BC="${FILENAME}.${PIPELINE}.bc"
-#     BIN="${FILENAME}_${PIPELINE}"
-#     echo
-#     echo "--- Pipeline: $PIPELINE ---"
-#     # It is registered as a MODULE pass, so we pass the name directly.
-#     opt -load-pass-plugin="$PATH2LIB" \
-#         -passes="${PIPELINE}" \
-#         "${FILENAME}.ls.bc" -o "$OUT_BC" >/dev/null
-#   fi
-
-#   # Build binary
-#   $COMPILER "$OUT_BC" -o "$BIN"
-
-#   # Time it
-#   echo "Running $BIN ..."
-#   time "./$BIN" >/dev/null
-# done
-
-# # Clean again
-# rm -f default.profraw *_prof *_fplicm *.bc *.profdata *.ll
-# cd "$CURRENT_DIR"
-
 #!/usr/bin/env bash
 set -e
 
@@ -130,11 +41,6 @@ cd "$(dirname "$SRC_FILE")"
 rm -f default.profraw *_prof *_fplicm *.bc *.profdata *_output *.ll \
       ${FILENAME}_* 2>/dev/null || true
 
-# ============================================================================
-# FIX 1: Compile with -O1 to get realistic IR with atomics preserved
-# -O1 keeps atomics visible while removing trivial inefficiencies
-# -O0 produces terribly slow code that masks all other effects
-# ============================================================================
 echo "Compiling to LLVM IR with -O1..."
 $COMPILER -O1 -emit-llvm -S "$FILE_BASENAME" -o ${FILENAME}.ll
 
@@ -168,9 +74,6 @@ for PIPELINE in "${PASSES[@]}"; do
         "${FILENAME}.ls.bc" -o "$OUT_BC" 2>&1 | grep -E "^\[" | head -20
   fi
 
-  # ============================================================================
-  # FIX 2: Compile final binary with -O3 for realistic performance
-  # ============================================================================
   $COMPILER -O3 "$OUT_BC" -o "$BIN"
 
   # Run benchmark 3 times and show all results
@@ -183,9 +86,6 @@ for PIPELINE in "${PASSES[@]}"; do
   done
 done
 
-# ============================================================================
-# FIX 3: Show the actual difference in the IR
-# ============================================================================
 echo
 echo "=========================================="
 echo "IR Comparison"
@@ -214,8 +114,6 @@ echo "  ${FILENAME}_baseline"
 echo "  ${FILENAME}_hft-atomic-elision"
 ```
 
-## Key Fixes
-
 | Issue | Before | After |
 |-------|--------|-------|
 | Initial compilation | No `-O` flag (O0) | `-O1` |
@@ -224,7 +122,6 @@ echo "  ${FILENAME}_hft-atomic-elision"
 | Verification | None | Counts atomics before/after |
 | Trials | Single run | 3 runs for consistency |
 
-## Why `-O1` for Initial IR?
 
 - **`-O0`**: Keeps all atomics but produces horribly slow code
 - **`-O1`**: Keeps atomics visible, removes trivial inefficiencies
