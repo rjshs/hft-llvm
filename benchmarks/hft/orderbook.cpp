@@ -1,3 +1,8 @@
+// This function contains atomic operations that are:
+// - NECESSARY in environments where stats are read from other threads
+//   (e.g., backtesting / monitoring / simulations)
+// - UNNECESSARY in production when we run a pinned, single-threaded engine
+
 #include <cstdint>
 #include <atomic>
 #include <array>
