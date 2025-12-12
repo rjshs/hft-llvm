@@ -15,3 +15,4 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Pass plugins
 add_subdirectory(hft_instrumentation)
 add_subdirectory(hftpass)
+add_subdirectory(hft_atomic)

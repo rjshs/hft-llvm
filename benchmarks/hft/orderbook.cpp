@@ -3,10 +3,17 @@
 //   (e.g., backtesting / monitoring / simulations)
 // - UNNECESSARY in production when we run a pinned, single-threaded engine
 
+// This function contains atomic operations that are:
+// - NECESSARY in environments where stats are read from other threads
+//   (e.g., backtesting / monitoring / simulations)
+// - UNNECESSARY in production when we run a pinned, single-threaded engine
+
 #include <cstdint>
 #include <atomic>
 #include <array>
+#include <array>
 #include <vector>
+#include <algorithm>
 #include <algorithm>
 #include <random>
 #include <chrono>
@@ -712,13 +719,52 @@ int main() {
     std::cout << "Processing messages...\n";
     
     // Benchmark
+    std::cout << "===========================================\n";
+    std::cout << "HFT Order Book Engine - Atomic Elision Demo\n";
+    std::cout << "===========================================\n";
+    std::cout << "\n";
+    std::cout << "Configuration:\n";
+    std::cout << "  Messages:     " << config::NUM_MESSAGES << "\n";
+    std::cout << "  Price levels: " << config::MAX_PRICE_LEVELS << "\n";
+    std::cout << "  Tick size:    $" << config::TICK_SIZE << "\n";
+    std::cout << "\n";
+    
+    // Initialize
+    MarketDataHandler handler;
+    MessageGenerator generator;
+    
+    std::cout << "Generating market data messages...\n";
+    auto messages = generator.generate(config::NUM_MESSAGES);
+    
+    std::cout << "Processing messages...\n";
+    
+    // Benchmark
     auto start = std::chrono::high_resolution_clock::now();
+    
+    for (const auto& msg : messages) {
+        handler.onMessage(msg);
     
     for (const auto& msg : messages) {
         handler.onMessage(msg);
     }
     
+    
     auto end = std::chrono::high_resolution_clock::now();
+    
+    // Results
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    double seconds = duration.count() / 1000.0;
+    double msgs_per_sec = config::NUM_MESSAGES / seconds;
+    double ns_per_msg = (duration.count() * 1e6) / config::NUM_MESSAGES;
+    
+    std::cout << "\n=== Performance Results ===\n";
+    std::cout << "Time:       " << duration.count() << " ms\n";
+    std::cout << "Throughput: " << msgs_per_sec / 1e6 << " M msgs/sec\n";
+    std::cout << "Latency:    " << ns_per_msg << " ns/msg\n";
+    
+    // Print statistics to prevent DCE and verify correctness
+    printStatistics(handler.stats());
+    
     
     // Results
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
