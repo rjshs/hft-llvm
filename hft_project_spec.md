@@ -6,7 +6,7 @@
 
 High-frequency trading (HFT) systems live and die by **microseconds**. A
 typical HFT engine:
-
+;
 - Keeps a large **order book** in memory (arrays of levels, orders,
   trades).
 

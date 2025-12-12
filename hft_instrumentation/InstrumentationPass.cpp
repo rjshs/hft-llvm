@@ -21,43 +21,45 @@
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/GlobalVariable.h"
+/* *******Implementation Ends Here******* */
 
-/* *******Implementation Starts Here******* */
+using namespace llvm;
 
-// --- Small utilities ---
+// --- Small utilities (mostly from HW2, some may be unused but kept around) ---
 
-static inline llvm::BranchProbability FPThreshold() {
-  return llvm::BranchProbability(4, 5); // 0.8
+static inline BranchProbability FPThreshold() {
+  return BranchProbability(4, 5); // 0.8
 }
-static const llvm::Value* stripPtrCasts(const llvm::Value *V) {
+
+static const Value *stripPtrCasts(const Value *V) {
   return V->stripPointerCasts();
 }
-static bool samePointerSSA(const llvm::Value *A, const llvm::Value *B) {
+
+static bool samePointerSSA(const Value *A, const Value *B) {
   return stripPtrCasts(A) == stripPtrCasts(B);
 }
 
-// Conservative base extractor (helps cheap screening; not required for candidate check)
-static const llvm::Value* getBasePtr(const llvm::Value *V) {
+static const Value *getBasePtr(const Value *V) {
   V = stripPtrCasts(V);
-  while (auto *G = llvm::dyn_cast<llvm::GEPOperator>(V)) {
+  while (auto *G = dyn_cast<GEPOperator>(V)) {
     V = stripPtrCasts(G->getPointerOperand());
   }
   return V;
 }
 
-static bool isLatchOf(const llvm::Loop &L, const llvm::BasicBlock *BB) {
-  llvm::SmallVector<llvm::BasicBlock*, 2> Latches;
+static bool isLatchOf(const Loop &L, const BasicBlock *BB) {
+  SmallVector<BasicBlock *, 2> Latches;
   L.getLoopLatches(Latches);
-  return llvm::is_contained(Latches, BB);
+  return is_contained(Latches, BB);
 }
 
-// Build frequent path: header -> ... -> a latch (stay inside loop; choose >=80% successor)
-static std::vector<llvm::BasicBlock*>
-buildFrequentPath(llvm::Loop &L, llvm::BranchProbabilityInfo &BPI) {
-  using namespace llvm;
-  std::vector<BasicBlock*> Path;
+static std::vector<BasicBlock *>
+buildFrequentPath(Loop &L, BranchProbabilityInfo &BPI) {
+  std::vector<BasicBlock *> Path;
   BasicBlock *Cur = L.getHeader();
-  if (!Cur) return {};
+  if (!Cur)
+    return {};
   Path.push_back(Cur);
 
   while (!isLatchOf(L, Cur)) {
@@ -67,229 +69,315 @@ buildFrequentPath(llvm::Loop &L, llvm::BranchProbabilityInfo &BPI) {
     if (auto *Br = dyn_cast<BranchInst>(TI)) {
       if (!Br->isConditional()) {
         BasicBlock *S = Br->getSuccessor(0);
-        if (L.contains(S)) Next = S; else return {};
+        if (L.contains(S))
+          Next = S;
+        else
+          return {};
       } else {
         BasicBlock *S0 = Br->getSuccessor(0);
         BasicBlock *S1 = Br->getSuccessor(1);
         auto P0 = BPI.getEdgeProbability(Cur, S0);
         auto P1 = BPI.getEdgeProbability(Cur, S1);
-        if (L.contains(S0) && P0 >= FPThreshold()) Next = S0;
+        if (L.contains(S0) && P0 >= FPThreshold())
+          Next = S0;
         if (L.contains(S1) && P1 >= FPThreshold() &&
-            (!Next || P1 > BPI.getEdgeProbability(Cur, Next))) Next = S1;
+            (!Next || P1 > BPI.getEdgeProbability(Cur, Next)))
+          Next = S1;
       }
     } else if (auto *Sw = dyn_cast<SwitchInst>(TI)) {
       for (unsigned i = 0; i < Sw->getNumSuccessors(); ++i) {
         auto *S = Sw->getSuccessor(i);
-        if (!L.contains(S)) continue;
+        if (!L.contains(S))
+          continue;
         auto P = BPI.getEdgeProbability(Cur, S);
-        if (P >= FPThreshold() && (!Next || P > BPI.getEdgeProbability(Cur, Next)))
+        if (P >= FPThreshold() &&
+            (!Next || P > BPI.getEdgeProbability(Cur, Next)))
           Next = S;
       }
     }
 
-    if (!Next) return {};       // fail cleanly; skip this loop
+    if (!Next)
+      return {};
     Cur = Next;
     Path.push_back(Cur);
   }
   return Path;
 }
 
-static llvm::DenseSet<const llvm::BasicBlock*>
-toSet(const std::vector<llvm::BasicBlock*> &v) {
-  llvm::DenseSet<const llvm::BasicBlock*> S;
-  for (auto *b : v) S.insert(b);
+static DenseSet<const BasicBlock *>
+toSet(const std::vector<BasicBlock *> &v) {
+  DenseSet<const BasicBlock *> S;
+  for (auto *b : v)
+    S.insert(b);
   return S;
 }
 
-// Re-materialize a *pure* pointer expression at insertion point.
-// Supports GEP/bitcast/addrspacecast; will also re-load non-volatile indices if needed.
-static llvm::Value*
-rematerializeAddr(llvm::Value *V, llvm::IRBuilder<> &B,
-                  llvm::DenseMap<llvm::Value*, llvm::Value*> &Cache) {
-  using namespace llvm;
-  if (auto It = Cache.find(V); It != Cache.end()) return It->second;
-
-  if (auto *I = dyn_cast<Instruction>(V)) {
-    if (auto *G = dyn_cast<GetElementPtrInst>(I)) {
-      SmallVector<Value*, 4> Idxs;
-      for (auto &Op : G->indices()) {
-        Value *Idx = Op.get();
-        if (auto *Ld = dyn_cast<LoadInst>(Idx)) {
-          auto *Ptr = rematerializeAddr(Ld->getPointerOperand(), B, Cache);
-          auto *NL  = B.CreateLoad(Ld->getType(), Ptr);
-          NL->setAlignment(Ld->getAlign());
-          NL->setAtomic(AtomicOrdering::NotAtomic);
-          NL->setVolatile(false);
-          Idxs.push_back(NL);
-        } else {
-          Idxs.push_back(Idx);
-        }
-      }
-      auto *Base = rematerializeAddr(G->getPointerOperand(), B, Cache);
-      auto *NewG = B.CreateGEP(G->getSourceElementType(), Base, Idxs, G->getName() + ".rm");
-      Cache[V] = NewG; return NewG;
-    } else if (auto *BC = dyn_cast<BitCastInst>(I)) {
-      auto *Op0 = rematerializeAddr(BC->getOperand(0), B, Cache);
-      auto *New = B.CreateBitCast(Op0, BC->getType(), BC->getName() + ".rm");
-      Cache[V] = New; return New;
-    } else if (auto *ASC = dyn_cast<AddrSpaceCastInst>(I)) {
-      auto *Op0 = rematerializeAddr(ASC->getOperand(0), B, Cache);
-      auto *New = B.CreateAddrSpaceCast(Op0, ASC->getType(), ASC->getName() + ".rm");
-      Cache[V] = New; return New;
-    }
-    Cache[V] = V; return V; // fallback: assume dominates
-  }
-  Cache[V] = V; return V;   // constants/args/globals
+// Helper: get the StructType that a GEP is indexing into (if any).
+static const StructType *getGEPStructType(const GetElementPtrInst *GEP) {
+  Type *SourceTy = GEP->getSourceElementType();
+  return dyn_cast<StructType>(SourceTy);
 }
 
-// --- Hoist plan container ---
+// Simple predicate for "is this one of our HFT structs?".
+static bool isHFTStruct(const StructType *ST) {
+  if (!ST || !ST->hasName())
+    return false;
+  StringRef N = ST->getName();
+  return N.contains("OrderBookLevel") || N.contains("hft_struct");
+}
 
-struct HoistPlan {
-  llvm::LoadInst  *Original;      // load inside loop (on frequent path)
-  llvm::AllocaInst *Spill;        // per-candidate spill in entry
-  llvm::Value     *PreheaderAddr; // rematerialized pointer usable in preheader
-  const llvm::Value *Base;        // base object (optional, for screening)
-};
+// Create (or reuse) the dump function that writes hft_profile.txt.
+// It prints one line per field: "<field_index> <count>\n".
+static Function *getOrCreateDumpFunction(Module &M,
+                                         GlobalVariable *FieldCountsGV,
+                                         unsigned NumFields) {
+  LLVMContext &Ctx = M.getContext();
+  Type *VoidTy   = Type::getVoidTy(Ctx);
+  Type *I32Ty    = Type::getInt32Ty(Ctx);
+  Type *I64Ty    = Type::getInt64Ty(Ctx);
+  Type *I8PtrTy  = PointerType::getUnqual(Type::getInt8Ty(Ctx));
 
-// --- Main per-loop transformer (correctness pass) ---
+  // Signature: void __hft_dump_profile()
+  FunctionType *DumpFTy = FunctionType::get(VoidTy, {}, false);
+  Function *DumpFn =
+      dyn_cast<Function>(M.getFunction("__hft_dump_profile"));
+  if (!DumpFn) {
+    DumpFn = Function::Create(DumpFTy, GlobalValue::InternalLinkage,
+                              "__hft_dump_profile", &M);
+  }
 
-static bool processLoop(llvm::Loop &L,
-                        llvm::BranchProbabilityInfo &BPI,
-                        llvm::BlockFrequencyInfo &BFI,
-                        llvm::LoopInfo &LI) {
-  using namespace llvm;
+  // If it already has a body, don't rebuild it.
+  if (!DumpFn->empty())
+    return DumpFn;
 
-  BasicBlock *Preheader = L.getLoopPreheader();
-  if (!Preheader) return false;
+  // Declare libc functions we need: fopen, fprintf, fclose.
+  // We model FILE* as i8*.
+  FunctionType *FopenTy =
+      FunctionType::get(I8PtrTy, {I8PtrTy, I8PtrTy}, false);
+  FunctionCallee FopenFn = M.getOrInsertFunction("fopen", FopenTy);
 
-  auto Path = buildFrequentPath(L, BPI);
-  if (Path.empty()) return false;
-  auto FP = toSet(Path);
+  FunctionType *FcloseTy =
+      FunctionType::get(I32Ty, {I8PtrTy}, false);
+  FunctionCallee FcloseFn = M.getOrInsertFunction("fclose", FcloseTy);
 
-  Function &F = *Preheader->getParent();
-  BasicBlock &EntryBB = F.getEntryBlock();
+  // int fprintf(FILE *stream, const char *fmt, ...);
+  FunctionType *FprintfTy =
+      FunctionType::get(I32Ty, {I8PtrTy}, true);
+  FunctionCallee FprintfFn = M.getOrInsertFunction("fprintf", FprintfTy);
 
-  llvm::IRBuilder<> PreB(Preheader->getTerminator());
+  // Build the body of __hft_dump_profile.
+  BasicBlock *EntryBB = BasicBlock::Create(Ctx, "entry", DumpFn);
+  IRBuilder<> B(EntryBB);
 
-  SmallVector<HoistPlan, 8> Plans;
+  // fopen("hft_profile.txt", "w")
+  Value *FileName = B.CreateGlobalStringPtr("hft_profile.txt",
+                                            "hft_profile_filename");
+  Value *Mode = B.CreateGlobalStringPtr("w", "hft_profile_mode");
+  Value *FilePtr = B.CreateCall(FopenFn, {FileName, Mode}, "file");
+  // If fopen fails, FilePtr will be null; we ignore that for simplicity.
 
-  // (1) Collect candidate loads ON the frequent path
-  for (BasicBlock *BB : Path) {
-    for (Instruction &I : *BB) {
-      auto *Ld = dyn_cast<LoadInst>(&I);
-      if (!Ld) continue;
-      if (Ld->isVolatile() || Ld->isAtomic()) continue;
+  // Common constants.
+  Value *ZeroI32 = ConstantInt::get(I32Ty, 0);
 
-      Value *Ptr = Ld->getPointerOperand();
+  // Format string: "%u %llu\n"
+  Value *FmtStr = B.CreateGlobalStringPtr("%u %llu\n",
+                                          "hft_profile_format");
 
-      // Must be almost-invariant: no store to the SAME POINTER SSA on the frequent path
-      bool StoreOnFP = false;
-      for (BasicBlock *B : Path) {
-        for (Instruction &J : *B) {
-          if (auto *St = dyn_cast<StoreInst>(&J)) {
-            if (samePointerSSA(St->getPointerOperand(), Ptr)) { StoreOnFP = true; break; }
-          }
-        }
-        if (StoreOnFP) break;
-      }
-      if (StoreOnFP) continue;
+  ArrayType *ArrTy =
+      cast<ArrayType>(FieldCountsGV->getValueType());
 
-      // Build preheader-usable pointer expression
-      DenseMap<Value*, Value*> Cache;
-      Value *PrePtr = rematerializeAddr(Ptr, PreB, Cache);
+  // Emit: for each field index i, load field_counts[i] and fprintf it.
+  for (unsigned i = 0; i < NumFields; ++i) {
+    Value *IdxI = ConstantInt::get(I32Ty, i);
 
-      Plans.push_back({Ld, /*Spill*/nullptr, PrePtr, getBasePtr(Ptr)});
+    // &__hft_field_counts[0][i]
+    Value *CounterPtr = B.CreateGEP(
+        ArrTy, FieldCountsGV, {ZeroI32, IdxI},
+        "hft_field_count_ptr");
+
+    Value *Count = B.CreateLoad(I64Ty, CounterPtr, "hft_count");
+
+    Value *IdxVal = ConstantInt::get(I32Ty, i);
+
+    // fprintf(file, "%u %llu\n", i, count);
+    SmallVector<Value *, 4> Args;
+    Args.push_back(FilePtr);   // FILE*
+    Args.push_back(FmtStr);    // const char *fmt
+    Args.push_back(IdxVal);    // %u
+    Args.push_back(Count);     // %llu
+
+    B.CreateCall(FprintfFn, Args, "fprintf_call");
+  }
+
+  // fclose(file);
+  B.CreateCall(FcloseFn, {FilePtr});
+  B.CreateRetVoid();
+
+  return DumpFn;
+}
+
+// Insert a call to DumpFn before every return in main().
+static void insertDumpCallInMain(Function &MainF, Function *DumpFn) {
+  for (BasicBlock &BB : MainF) {
+    if (auto *Ret = dyn_cast<ReturnInst>(BB.getTerminator())) {
+      IRBuilder<> B(Ret);
+      B.CreateCall(DumpFn);
     }
   }
+}
 
-  if (Plans.empty()) return false;
-  bool Changed = false;
+namespace {
 
-  // (2) Hoist each: create aligned spill in entry, load in preheader -> store spill, rewrite original
-  for (auto &P : Plans) {
-    Type  *Ty  = P.Original->getType();
-    Align  Aln = P.Original->getAlign();
+struct HFTInstrumentationPass : public PassInfoMixin<HFTInstrumentationPass> {
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
+    Module &M = *F.getParent();
+    LLVMContext &Ctx = M.getContext();
 
-    // Spill: aligned alloca at entry (insert at the very beginning)
-    auto *Spill = new AllocaInst(Ty, /*AddrSpace*/0, /*ArraySize*/nullptr, Aln,
-                                 P.Original->getName() + ".spill",
-                                 &*EntryBB.getFirstInsertionPt());
-    P.Spill = Spill;
+    // Find the concrete struct type for OrderBookLevel in this module.
+    StructType *OrderBookTy = nullptr;
+    for (StructType *ST : M.getIdentifiedStructTypes()) {
+      if (!ST->hasName())
+        continue;
+      if (ST->getName().contains("OrderBookLevel")) {
+        OrderBookTy = ST;
+        break;
+      }
+    }
 
-    // Hoisted load in preheader (match alignment), then store to spill
-    auto *Hoisted = PreB.CreateLoad(Ty, P.PreheaderAddr, P.Original->getName() + ".pre");
-    Hoisted->setAlignment(Aln);
-    PreB.CreateStore(Hoisted, P.Spill);
+    if (!OrderBookTy || OrderBookTy->isOpaque())
+      return PreservedAnalyses::all();
 
-    // Replace original with reload-from-spill at the same point; erase original
-    IRBuilder<> Here(P.Original);
-    auto *Reload = Here.CreateLoad(Ty, P.Spill, P.Original->getName() + ".fromspill");
-    Reload->setAlignment(Aln);
-    P.Original->replaceAllUsesWith(Reload);
-    P.Original->eraseFromParent();
+    unsigned NumFields = OrderBookTy->getNumElements();
 
-    Changed = true;
-  }
+    // Ensure we have a global counter array: [NumFields x i64] __hft_field_counts
+    GlobalVariable *FieldCountsGV =
+        M.getGlobalVariable("__hft_field_counts");
+    if (!FieldCountsGV) {
+      ArrayType *ArrTy =
+          ArrayType::get(Type::getInt64Ty(Ctx), NumFields);
+      FieldCountsGV = new GlobalVariable(
+          M,
+          ArrTy,
+          /*isConstant*/ false,
+          GlobalValue::InternalLinkage,
+          ConstantAggregateZero::get(ArrTy),
+          "__hft_field_counts");
+    } else {
+      auto *ArrTy =
+          dyn_cast<ArrayType>(FieldCountsGV->getValueType());
+      if (!ArrTy || ArrTy->getNumElements() != NumFields) {
+        // Mismatch: bail out conservatively for this function.
+        return PreservedAnalyses::all();
+      }
+    }
 
-  // (3) Repair: on INFREQUENT paths, right AFTER any store to the SAME POINTER SSA
-  for (BasicBlock *BB : L.blocks()) {
-    if (FP.contains(BB)) continue; // only infrequent blocks
+    bool Changed = false;
 
-    for (auto It = BB->begin(); It != BB->end(); ++It) {
-      if (auto *St = dyn_cast<StoreInst>(&*It)) {
-        for (auto &P : Plans) {
-          if (!samePointerSSA(St->getPointerOperand(), P.Original->getPointerOperand()))
-            continue;
+    Type *I32Ty = Type::getInt32Ty(Ctx);
+    Type *I64Ty = Type::getInt64Ty(Ctx);
 
-          // Insert repair immediately after this store
-          auto NextIt = std::next(It);
-          IRBuilder<> FixB(&*NextIt);
+    // --- 1. Instrument loads/stores to OrderBookLevel fields in this function. ---
+    for (BasicBlock &BB : F) {
+      for (Instruction &I : BB) {
+        auto *GEP = dyn_cast<GetElementPtrInst>(&I);
+        if (!GEP)
+          continue;
 
-          DenseMap<Value*, Value*> Cache;
-          Value *CurPtr = rematerializeAddr(
-              const_cast<Value*>(P.Original->getPointerOperand()), FixB, Cache);
+        const StructType *ST = getGEPStructType(GEP);
+        if (!ST || ST != OrderBookTy)
+          continue;
+        if (!isHFTStruct(ST))
+          continue;
 
-          auto *NewVal = FixB.CreateLoad(P.Spill->getAllocatedType(), CurPtr, "fplicm.fix");
-          NewVal->setAlignment(P.Original->getAlign());
-          FixB.CreateStore(NewVal, P.Spill);
+        // Expect: %fieldPtr = getelementptr %OrderBookLevel, %OrderBookLevel* %p, i32 0, i32 <fieldIdx>
+        if (GEP->getNumIndices() < 2)
+          continue;
+
+        auto IdxIt = GEP->idx_begin();
+        ++IdxIt; // skip the leading "0" index into the struct
+        Value *FieldIdxV = IdxIt->get();
+        auto *FieldCI = dyn_cast<ConstantInt>(FieldIdxV);
+        if (!FieldCI)
+          continue;
+
+        unsigned FieldIdx =
+            (unsigned)FieldCI->getZExtValue();
+        if (FieldIdx >= NumFields)
+          continue;
+
+        // Collect direct load/store uses of this field pointer.
+        SmallVector<Instruction *, 4> UsesToInstrument;
+        for (User *U : GEP->users()) {
+          if (auto *Ld = dyn_cast<LoadInst>(U)) {
+            UsesToInstrument.push_back(Ld);
+          } else if (auto *St = dyn_cast<StoreInst>(U)) {
+            if (St->getPointerOperand() == GEP)
+              UsesToInstrument.push_back(St);
+          }
+        }
+
+        if (UsesToInstrument.empty())
+          continue;
+
+        for (Instruction *UseI : UsesToInstrument) {
+          Instruction *InsertPt = UseI->getNextNode();
+          if (!InsertPt)
+            continue; // very defensive
+
+          IRBuilder<> B(InsertPt);
+
+          // GEP into __hft_field_counts[FieldIdx]
+          Value *Zero = ConstantInt::get(I32Ty, 0);
+          Value *IdxVal = ConstantInt::get(I32Ty, FieldIdx);
+
+          Value *CounterPtr = B.CreateGEP(
+              FieldCountsGV->getValueType(),
+              FieldCountsGV,
+              {Zero, IdxVal},
+              "__hft_field_count_ptr");
+
+          // Load, increment, store
+          Value *OldV =
+              B.CreateLoad(I64Ty, CounterPtr, "hft_old_count");
+          Value *One = ConstantInt::get(I64Ty, 1);
+          Value *NewV =
+              B.CreateAdd(OldV, One, "hft_new_count");
+          B.CreateStore(NewV, CounterPtr);
 
           Changed = true;
         }
       }
     }
+
+    // --- 2. If this is main(), wire in the dump function. ---
+    if (F.getName() == "main") {
+      Function *DumpFn =
+          getOrCreateDumpFunction(M, FieldCountsGV, NumFields);
+      insertDumpCallInMain(F, DumpFn);
+      Changed = true;
+    }
+
+    if (Changed)
+      return PreservedAnalyses::none();
+    return PreservedAnalyses::all();
   }
+};
 
-  return Changed;
-}
+} // end anonymous namespace
 
-/* *******Implementation Ends Here******* */
-
-using namespace llvm;
-
-namespace {
-  struct HFTInstrumentationPass : public PassInfoMixin<HFTInstrumentationPass> {
-
-    PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
-      llvm::errs() << "[HFT-Inst] Function: " << F.getName() << "\n";
-      return PreservedAnalyses::all();
-    }
-  };
-}
-
-extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginInfo() {
+extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK
+llvmGetPassPluginInfo() {
   return {
-    LLVM_PLUGIN_API_VERSION, "HFTInstrumentationPass", "v0.1",
-    [](PassBuilder &PB) {
-      PB.registerPipelineParsingCallback(
-        [](StringRef Name, FunctionPassManager &FPM,
-        ArrayRef<PassBuilder::PipelineElement>) {
-          if(Name == "hft-inst"){
-            FPM.addPass(HFTInstrumentationPass());
-            return true;
-          }
-          return false;
-        }
-      );
-    }
-  };
+      LLVM_PLUGIN_API_VERSION, "HFTInstrumentationPass", "v0.1",
+      [](PassBuilder &PB) {
+        PB.registerPipelineParsingCallback(
+            [](StringRef Name, FunctionPassManager &FPM,
+               ArrayRef<PassBuilder::PipelineElement>) {
+              if (Name == "hft-inst") {
+                FPM.addPass(HFTInstrumentationPass());
+                return true;
+              }
+              return false;
+            });
+      }};
 }
