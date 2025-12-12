@@ -253,7 +253,7 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
       errs() << "[HFTHotColdRewrite] Could not find globals 'bids' and 'asks'; aborting.\n";
       return PreservedAnalyses::all();
     }
-
+    
     auto *BidsArrayTy = dyn_cast<ArrayType>(BidsGV->getValueType());
     auto *AsksArrayTy = dyn_cast<ArrayType>(AsksGV->getValueType());
 

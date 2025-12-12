@@ -728,14 +728,6 @@ int main() {
     std::cout << "  Price levels: " << config::MAX_PRICE_LEVELS << "\n";
     std::cout << "  Tick size:    $" << config::TICK_SIZE << "\n";
     std::cout << "\n";
-    
-    // Initialize
-    MarketDataHandler handler;
-    MessageGenerator generator;
-    
-    std::cout << "Generating market data messages...\n";
-    auto messages = generator.generate(config::NUM_MESSAGES);
-    
     std::cout << "Processing messages...\n";
     
     // Benchmark
@@ -743,12 +735,8 @@ int main() {
     
     for (const auto& msg : messages) {
         handler.onMessage(msg);
-    
-    for (const auto& msg : messages) {
-        handler.onMessage(msg);
     }
-    
-    
+
     auto end = std::chrono::high_resolution_clock::now();
     
     // Results
@@ -764,21 +752,5 @@ int main() {
     
     // Print statistics to prevent DCE and verify correctness
     printStatistics(handler.stats());
-    
-    
-    // Results
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-    double seconds = duration.count() / 1000.0;
-    double msgs_per_sec = config::NUM_MESSAGES / seconds;
-    double ns_per_msg = (duration.count() * 1e6) / config::NUM_MESSAGES;
-    
-    std::cout << "\n=== Performance Results ===\n";
-    std::cout << "Time:       " << duration.count() << " ms\n";
-    std::cout << "Throughput: " << msgs_per_sec / 1e6 << " M msgs/sec\n";
-    std::cout << "Latency:    " << ns_per_msg << " ns/msg\n";
-    
-    // Print statistics to prevent DCE and verify correctness
-    printStatistics(handler.stats());
-    
     return 0;
 }
