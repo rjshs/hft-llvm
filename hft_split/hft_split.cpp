@@ -192,7 +192,6 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
       return PreservedAnalyses::all();
     }
 
-    // Map from *original* field index → index in HotTy / ColdTy, or -1 if not there.
     SmallVector<int, 16> HotIndexMap(NumFields, -1);
     SmallVector<int, 16> ColdIndexMap(NumFields, -1);
 
@@ -230,7 +229,6 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
     errs() << "[HFTHotColdSplit] Created cold struct type: " << ColdTy->getName()
           << " with " << ColdFields.size() << " fields.\n";
 
-    // Optional: print the mapping for your sanity.
     errs() << "[HFTHotColdSplit] HotIndexMap (old_index -> new_hot_index): ";
     for (unsigned i = 0; i < NumFields; ++i) {
       if (HotIndexMap[i] >= 0)
@@ -306,7 +304,7 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
           if (GEP->getNumIndices() < 2) continue;
 
           auto IdxIt = GEP->idx_begin();
-          ++IdxIt; // skip the leading 0
+          ++IdxIt;
           Value *FieldIdxV = IdxIt->get();
           auto *FieldCI = dyn_cast<ConstantInt>(FieldIdxV);
           if (!FieldCI) continue;
@@ -318,7 +316,7 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
       // Rewrite each field GEP if its base struct pointer is from orignal bids/asks array
       for (GetElementPtrInst *FieldGEP : FieldGEPs) {
         auto IdxIt = FieldGEP->idx_begin();
-        ++IdxIt; // skip leading 0
+        ++IdxIt;
         Value *FieldIdxV = IdxIt->get();
         auto *FieldCI    = cast<ConstantInt>(FieldIdxV);
         unsigned FieldIdx = (unsigned)FieldCI->getZExtValue();
@@ -367,29 +365,19 @@ struct HFTHotColdStructSplitPass : public PassInfoMixin<HFTHotColdStructSplitPas
 
         if (NewHotIdx >= 0) {
           // Go through the hot array
-          NewElemPtr = B.CreateGEP(
-              HotArr, HotGV, {Idx0, LevelIdx},
-              ElemGEP->getName() + ".hot.elem");
+          NewElemPtr = B.CreateGEP(HotArr, HotGV, {Idx0, LevelIdx}, ElemGEP->getName() + ".hot.elem");
 
-          Value *HotFieldCI =
-              ConstantInt::get(Type::getInt32Ty(Ctx), (unsigned)NewHotIdx);
+          Value *HotFieldCI = ConstantInt::get(Type::getInt32Ty(Ctx), (unsigned)NewHotIdx);
 
-          NewFieldPtr = B.CreateGEP(
-              HotTy, NewElemPtr, {ZeroI32, HotFieldCI},
-              FieldGEP->getName() + ".hot");
+          NewFieldPtr = B.CreateGEP(HotTy, NewElemPtr, {ZeroI32, HotFieldCI}, FieldGEP->getName() + ".hot");
         } else {
           // Must be cold
           unsigned ColdIdxUnsigned = (unsigned)NewColdIdx;
-          NewElemPtr = B.CreateGEP(
-              ColdArr, ColdGV, {Idx0, LevelIdx},
-              ElemGEP->getName() + ".cold.elem");
+          NewElemPtr = B.CreateGEP(ColdArr, ColdGV, {Idx0, LevelIdx}, ElemGEP->getName() + ".cold.elem");
 
-          Value *ColdFieldCI =
-              ConstantInt::get(Type::getInt32Ty(Ctx), ColdIdxUnsigned);
+          Value *ColdFieldCI = ConstantInt::get(Type::getInt32Ty(Ctx), ColdIdxUnsigned);
 
-          NewFieldPtr = B.CreateGEP(
-              ColdTy, NewElemPtr, {ZeroI32, ColdFieldCI},
-              FieldGEP->getName() + ".cold");
+          NewFieldPtr = B.CreateGEP(ColdTy, NewElemPtr, {ZeroI32, ColdFieldCI}, FieldGEP->getName() + ".cold");
         }
 
         FieldGEP->replaceAllUsesWith(NewFieldPtr);
@@ -412,14 +400,6 @@ struct HFTPrintPass : public PassInfoMixin<HFTPrintPass> {
     size_t NumBlocks = 0;
     for (auto &BB : F) (void)BB, ++NumBlocks;
     errs() << "[HFTPrintPass] Function " << F.getName() << " has " << NumBlocks << " basic blocks\n";
-    return PreservedAnalyses::all();
-  }
-};
-
-struct HFTExperiment1Pass : public PassInfoMixin<HFTExperiment1Pass> {
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
-    // TODO: your real optimization code here later.
-    // For now, do nothing and claim we preserved everything.
     return PreservedAnalyses::all();
   }
 };

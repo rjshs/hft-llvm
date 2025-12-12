@@ -384,16 +384,14 @@ private:
             Value *V = It->get();
             if (auto *Ext = dyn_cast<SExtInst>(V)) {
                 if (Ext->getOperand(0) == IA.IndexLoad) {
-                    FutureIdxVal = Builder.CreateSExt(FutureIdxVal, Ext->getType(),
-                                                       "prefetch.idx.ext");
+                    FutureIdxVal = Builder.CreateSExt(FutureIdxVal, Ext->getType(), "prefetch.idx.ext");
                     OrigIdx = V;
                     break;
                 }
             }
             if (auto *Ext = dyn_cast<ZExtInst>(V)) {
                 if (Ext->getOperand(0) == IA.IndexLoad) {
-                    FutureIdxVal = Builder.CreateZExt(FutureIdxVal, Ext->getType(),
-                                                       "prefetch.idx.ext");
+                    FutureIdxVal = Builder.CreateZExt(FutureIdxVal, Ext->getType(), "prefetch.idx.ext");
                     OrigIdx = V;
                     break;
                 }
