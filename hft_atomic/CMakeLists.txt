@@ -1,0 +1,1 @@
+add_llvm_pass_plugin(HFTAtomic hft_atomic.cpp)
