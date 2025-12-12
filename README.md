@@ -4,4 +4,4 @@ Utilizes LLVM-based compilation pipeline that compiles C++ order book engines in
 
 # How to run
 - ./build.sh
-- ./run.sh -c benchmarks/hft/orderbook.cpp
+- ./run_hft.sh benchmarks/hft/orderbook.cpp
