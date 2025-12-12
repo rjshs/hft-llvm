@@ -426,7 +426,7 @@ struct HFTExperiment1Pass : public PassInfoMixin<HFTExperiment1Pass> {
 
 extern "C" ::llvm::PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginInfo() {
   return {
-    LLVM_PLUGIN_API_VERSION, "HFTPasses", "v0.1",
+    LLVM_PLUGIN_API_VERSION, "HFTSplit", "v0.1",
     [](PassBuilder &PB) {
       PB.registerPipelineParsingCallback(
         [](StringRef Name, FunctionPassManager &FPM,

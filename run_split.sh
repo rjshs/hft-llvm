@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-LIB="build/hftpass/HFTPasses.so"
+LIB="build/hft_split/HFTSplit.so"
 if [ ! -f "$LIB" ]; then
-  echo "HFTPasses.so not found at $LIB; build first."
+  echo "HFTSplit.so not found at $LIB; build first."
   exit 1
 fi
 
